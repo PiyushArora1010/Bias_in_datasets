@@ -1,0 +1,10 @@
+[Best Test Accuracy]21.479999542236328[Final Epoch Test Accuracy]25.479999542236328[Best Cheat Test Accuracy]26.189998626708984
+[Best Test Accuracy]15.00999927520752[Final Epoch Test Accuracy]20.84000015258789[Best Cheat Test Accuracy]21.989999771118164
+[Best Test Accuracy]23.53999900817871[Final Epoch Test Accuracy]26.049999237060547[Best Cheat Test Accuracy]26.119998931884766
+[Best Test Accuracy]22.260000228881836[Final Epoch Test Accuracy]20.1299991607666[Best Cheat Test Accuracy]22.260000228881836
+[Best Test Accuracy]16.3799991607666[Final Epoch Test Accuracy]20.459999084472656[Best Cheat Test Accuracy]20.689998626708984
+[Best Test Accuracy]26.65999984741211[Final Epoch Test Accuracy]26.84000015258789[Best Cheat Test Accuracy]26.84000015258789
+[Best Test Accuracy]21.18000030517578[Final Epoch Test Accuracy]21.189998626708984[Best Cheat Test Accuracy]21.53999900817871
+[Best Test Accuracy]20.8799991607666[Final Epoch Test Accuracy]19.389999389648438[Best Cheat Test Accuracy]21.989999771118164
+[Best Test Accuracy]20.689998626708984[Final Epoch Test Accuracy]19.489999771118164[Best Cheat Test Accuracy]21.649999618530273
+[Best Test Accuracy]20.600000381469727[Final Epoch Test Accuracy]20.68000030517578[Best Cheat Test Accuracy]21.19999885559082

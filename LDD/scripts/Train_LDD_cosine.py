@@ -499,5 +499,5 @@ for epoch in range(1, main_num_steps+1):
     print('[Best Test Accuracy]', test_accuracy)
 
 
-write_to_file('results_text/results_Vanilla_LDD_'+args.dataset_in.split('-')[0]+'_'+str(args.train_samples)+'_'+str(args.bias_ratio)+'.txt','[Best Test Accuracy]'+str(test_accuracy)+"[Final Epoch Test Accuracy]"+str(test_accuracy_epoch)+ '[Best Cheat Test Accuracy]'+str(test_cheat))
+write_to_file('results_text/results_Cosine_LDD_'+args.dataset_in.split('-')[0]+'_'+str(args.train_samples)+'_'+str(args.bias_ratio)+'.txt','[Best Test Accuracy]'+str(test_accuracy)+"[Final Epoch Test Accuracy]"+str(test_accuracy_epoch)+ '[Best Cheat Test Accuracy]'+str(test_cheat))
 

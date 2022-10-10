@@ -202,7 +202,6 @@ print("[Conflicting Samples in Test Data]["+str(len(test_dataset.attr[test_datas
 train_target_attr = train_dataset.attr[:, target_attr_idx]
 train_bias_attr = train_dataset.attr[:, bias_attr_idx]
 
-del indices_train_biased, indices_train_unbiased, nums_train_biased, nums_train_unbiased, nums_train, nums_valid_unbiased
 
 
 attr_dims = []
@@ -278,14 +277,20 @@ sample_loss_ema_d = EMA(torch.LongTensor(train_target_attr), num_classes=num_cla
 
 if 'CIFAR' in args.dataset_in:
     main_num_steps = 300
+    lambda_swap_align = 5.0
+    lambda_dis_align = 5.0
+    lambda_swap_ = 1.0
 elif 'MNIST' in args.dataset_in:
     main_num_steps = 200
+    lambda_swap_align = 10.0
+    lambda_dis_align = 10.0
+    lambda_swap_ = 1.0
 else:
     main_num_steps = 150
-
-lambda_swap_align = 10.0
-lambda_dis_align = 10.0
-lambda_swap_ = 1.0
+    lambda_swap_align = 2.0
+    lambda_dis_align = 2.0
+    lambda_swap_ = 0.5
+    
 loss_rotate_param = 0.5
 
 test_accuracy = -1.0

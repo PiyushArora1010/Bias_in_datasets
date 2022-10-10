@@ -3,6 +3,7 @@ import sys
 os.chdir('..')
 sys.path[0] = os.getcwd()
 
+_EPSILON = 1e-6
 
 from module.loss import GeneralizedCELoss
 from util import EMA
@@ -19,6 +20,8 @@ import random
 from numpy.random import RandomState
 import torchvision.transforms.functional as TF
 import cv2 as cv
+from entmax import sparsemax
+
 
 def set_seed(seed: int) -> RandomState:
     torch.backends.cudnn.deterministic = True
@@ -49,18 +52,34 @@ bias_attr_idx = 1
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+def _vector_norms(v:torch.Tensor)->torch.Tensor:
+
+    squared_norms = torch.sum(v * v, dim=1, keepdim=True)
+    return torch.sqrt(squared_norms + _EPSILON)
+
+def _distance(x:torch.Tensor , y:torch.Tensor, type:str='cosine')->torch.Tensor:
+
+        if type == 'cosine':
+            x_norm = x / _vector_norms(x)
+            y_norm = y / _vector_norms(y)
+            d = 1 - torch.mm(x_norm,y_norm.transpose(0,1))
+        elif type == 'l2':
+            d = (
+                x.unsqueeze(1).expand(x.shape[0], y.shape[0], -1) -
+                y.unsqueeze(0).expand(x.shape[0], y.shape[0], -1)
+        ).pow(2).sum(dim=2)
+        elif type == 'dot':
+            expanded_x = x.unsqueeze(1).expand(x.shape[0], y.shape[0], -1)
+            expanded_y = y.unsqueeze(0).expand(x.shape[0], y.shape[0], -1)
+            d = -(expanded_x * expanded_y).sum(dim=2)
+        else:
+            raise NameError('{} not recognized as valid distance. Acceptable values are:[\'cosine\',\'l2\',\'dot\']'.format(type))
+        return d
 
 def write_to_file(filename, text):
     with open(filename, 'a') as f:
         f.write(text)
         f.write('\n')
-
-def rotated_batch(images, rotation):
-    images_rot_temp = []
-    for i in images:
-        images_rot_temp.append(cv.rotate(i, rotation))
-    
-    return np.array(images_rot_temp)
 
 def evaluate_accuracy(model_b, model_l, data_loader, model='label'):
         model_b.eval()
@@ -98,8 +117,7 @@ def evaluate_accuracy(model_b, model_l, data_loader, model='label'):
                     hook_fn = model_b.layer4.register_forward_hook(concat_dummy(z_b))
                     _ = model_b(data)
                     hook_fn.remove()
-                    z_b = z_b[0]   
-
+                    z_b = z_b[0]    
 
                 z_origin = torch.cat((z_l, z_b), dim=1)
 
@@ -160,6 +178,7 @@ nums_train_unbiased = np.random.choice(indices_train_unbiased, int(args.bias_rat
 
 nums_train = np.concatenate((nums_train_biased, nums_train_unbiased))
 
+
 if args.dataset_in != 'bffhq':
     nums_valid_unbiased = []
     while len(nums_valid_unbiased) < 1000:
@@ -198,7 +217,6 @@ train_bias_attr = train_dataset.attr[:, bias_attr_idx]
 
 
 
-
 attr_dims = []
 attr_dims.append(torch.max(train_target_attr).item() + 1)
 num_classes = attr_dims[0]
@@ -228,6 +246,12 @@ test_loader = DataLoader(
         shuffle=False,
         drop_last=False
     )
+mem_loader = DataLoader(
+        train_dataset,
+        batch_size=100,
+        shuffle=True,
+        drop_last=True
+)
 
 try:
     model_d = dic_models[args.model_in](num_classes).to(device)
@@ -238,6 +262,7 @@ except:
 
 model_d.fc = nn.Linear(model_d.fc.in_features*2, num_classes).to(device)
 model_b.fc = nn.Linear(model_b.fc.in_features*2, num_classes).to(device)
+
 
 if 'MNIST' in args.dataset_in:
     optimizer_b = torch.optim.Adam(model_b.parameters(),lr= 0.002, weight_decay=0.0)
@@ -280,6 +305,8 @@ else:
     lambda_dis_align = 2.0
     lambda_swap_ = 0.5
 
+mem_iter = None
+
 test_accuracy = -1.0
 test_cheat = -1.0
 test_accuracy_epoch = -1.0
@@ -295,7 +322,17 @@ for epoch in range(1, main_num_steps+1):
 
         data = data.to(device)
         label = label.to(device)
-    
+
+        try:
+            indexm, datam, labelm = next(mem_iter)
+        except:
+            mem_iter = iter(mem_loader)
+            indexm, datam, labelm = next(mem_iter)
+        
+        datam = datam.to(device)
+        labelm = labelm[:,0]
+        labelm = labelm.to(device)
+
         try:
             z_b = []
             hook_fn = model_b.avgpool.register_forward_hook(concat_dummy(z_b))
@@ -326,11 +363,41 @@ for epoch in range(1, main_num_steps+1):
             if epoch == 1 and ix == 0:
                 print("[Layer 4 Selected]")
 
+        try:
+            z_bm = []
+            hook_fn = model_b.avgpool.register_forward_hook(concat_dummy(z_bm))
+            _ = model_b(datam)
+            hook_fn.remove()
+            z_bm = z_bm[0]
+            
+            z_dm = []
+            hook_fn = model_d.avgpool.register_forward_hook(concat_dummy(z_dm))
+            _ = model_d(datam)
+            hook_fn.remove()
+            z_dm = z_dm[0]
+
+            if epoch == 1 and ix == 0:
+                print("[Average Pool layer Selected]")
+        except:
+            z_bm = []
+            hook_fn = model_b.layer4.register_forward_hook(concat_dummy(z_bm))
+            _ = model_b(datam)
+            hook_fn.remove()
+            z_bm = z_bm[0]
+            
+            z_dm = []
+            hook_fn = model_d.layer4.register_forward_hook(concat_dummy(z_dm))
+            _ = model_d(datam)
+            hook_fn.remove()
+            z_dm = z_dm[0]
+            if epoch == 1 and ix == 0:
+                print("[Layer 4 Selected]")
+
         z_conflict = torch.cat((z_d, z_b.detach()), dim=1)
         z_align = torch.cat((z_d.detach(), z_b), dim=1)
 
+        ## print z_d and z_d
 
-       
         pred_conflict = model_d.fc(z_conflict)
         pred_align = model_b.fc(z_align)
         loss_dis_conflict = criterion(pred_conflict, label)
@@ -363,9 +430,28 @@ for epoch in range(1, main_num_steps+1):
   
 
         if epoch >= 30:
-            indices = np.random.permutation(z_b.size(0))
-            z_b_swap = z_b[indices]         # z tilde
-            label_swap = label[indices]     # y tilde
+            
+            cosine_sim_debiased = _distance(z_d.detach(), z_dm.detach())
+            cosine_sim_biased = _distance(z_b.detach(), z_bm.detach())
+
+            cosine_sim_debiased = sparsemax(cosine_sim_debiased)
+            cosine_sim_biased = sparsemax(cosine_sim_biased)
+
+            indices = []
+
+            for i in range(cosine_sim_debiased.shape[0]):
+               
+                indices_biased_zero = torch.where(cosine_sim_biased[i] == 0)[0]
+
+                temp_ind = torch.argmax(cosine_sim_debiased[i][indices_biased_zero])
+
+                indices.append(indices_biased_zero[temp_ind])
+            
+            indices = torch.tensor(indices)
+
+            z_b_swap = z_bm[indices]         # z tilde
+            label_swap = labelm[indices]     # y tilde
+
 
             z_mix_conflict = torch.cat((z_d, z_b_swap.detach()), dim=1)
             z_mix_align = torch.cat((z_d.detach(), z_b_swap), dim=1)
@@ -390,7 +476,7 @@ for epoch in range(1, main_num_steps+1):
         loss.backward()
         optimizer_d.step()
         optimizer_b.step()
-
+        
     schedulerb.step()
     schedulerd.step()
 
